@@ -6,9 +6,17 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import FAISS 
 import streamlit as st 
 import pandas as pd
-
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage
+)
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
+
 
 
 ########## Remeber: enable this for DEV
@@ -74,7 +82,7 @@ def main():
 
         # Download embeddings from OpenAI
         embeddings = OpenAIEmbeddings()
-        docsearch = FAISS.from_texts(texts, embeddings) 
+        vectorstore = FAISS.from_texts(texts, embeddings) 
 
  
         # STARTS: user input section
@@ -84,7 +92,7 @@ def main():
 
         user_input = get_text()
         if(user_input != ""):
-            response = load_result(user_input, docsearch)
+            response = load_result(user_input, vectorstore)
 
         submit = st.button('get answer')  
         #If generate button is clicked
@@ -94,28 +102,25 @@ def main():
 
         # ENDS: user input section
 
-def load_result(query, docsearch):
+def load_result(query, vectorstore):
     # query = "how does GPT-4 change social media?"
-    docs = docsearch.similarity_search(query)
-    len(docs)
-    print(docs[0])
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    qa = ConversationalRetrievalChain.from_llm(OpenAI(temperature=0), vectorstore.as_retriever(), memory=memory)
+    
+    result = qa({"question": query})
+    print("*************************************************************")
+    #docs = docsearch.similarity_search(query)
+    # len(docs)
+    # print(docs[0])
     
 
-    chain = load_qa_chain(OpenAI(), chain_type="stuff") # we are going to stuff all the docs in at once
-    final_result = chain.run(input_documents=docs, question=query)
-    return final_result
+    # chain = load_qa_chain(OpenAI(), chain_type="stuff") # we are going to stuff all the docs in at once
+    # response = chain.run(input_documents=docs, question=query)
+    # st.session_state.prompts.append(query)
+    # st.session_state.responses.append(response)
+    # print(st.session_state.user)
+    return result["answer"]
 
-    # check the prompt
-    # chain.llm_chain.prompt.template
-
-    # query = "who is the author of the book?"
-    # query_02 = "has it rained this week?"
-    # docs = docsearch.similarity_search(query_02)
-    # chain.run(input_documents=docs, question=query)
-
-    # query = "who is the book authored by?"
-    # docs = docsearch.similarity_search(query,k=4)
-    # chain.run(input_documents=docs, question=query)
 
 if __name__ == "__main__":
     main()
